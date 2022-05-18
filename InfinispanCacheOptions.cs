@@ -10,6 +10,7 @@ namespace Infinispan.Hotrod.Caching
 {
     public class InfinispanCacheOptions : IOptions<InfinispanCacheOptions>
     {
+        public InfinispanDG Cluster { get; set; }
         public string CacheName { get; set; }
         public ExpirationTime lifeSpan { get; set; }
         public ExpirationTime maxIdle { get; set; }

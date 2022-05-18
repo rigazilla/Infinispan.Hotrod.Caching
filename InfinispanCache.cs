@@ -11,9 +11,10 @@ namespace Infinispan.Hotrod.Caching
     {
         private InfinispanDG cluster;
         private Cache<string, byte[]> cache;
-        public InfinispanCache(InfinispanDG cluster, string cacheName)
+        public InfinispanCache(IOptions<InfinispanCacheOptions> optionsAccessor)
         {
-            cache = cluster.newCache<string, byte[]>(new StringMarshaller(), new IdentityMarshaller(), cacheName);
+            cluster = optionsAccessor.Value.Cluster;
+            cache = cluster.NewCache<string, byte[]>(new StringMarshaller(), new IdentityMarshaller(), optionsAccessor.Value.CacheName);
         }
         public byte[] Get(string key)
         {
@@ -32,17 +33,17 @@ namespace Infinispan.Hotrod.Caching
         public async Task RefreshAsync(string key, CancellationToken token = default)
         {
             ValueWithMetadata<byte[]> vwm = await cache.GetWithMetadata(key);
-            if (vwm.Lifespan == -1)
+            if (vwm == null || vwm.Lifespan == -1)
                 return;
             ExpirationTime lifeS = new ExpirationTime();
             lifeS.Unit = TimeUnit.SECONDS;
-            lifeS.Value = (ulong)vwm.Lifespan;
+            lifeS.Value = vwm.Lifespan;
             ExpirationTime maxIdle = null;
             if (vwm.MaxIdle != -1)
             {
                 maxIdle = new ExpirationTime();
                 maxIdle.Unit = TimeUnit.SECONDS;
-                maxIdle.Value = (ulong)vwm.MaxIdle;
+                maxIdle.Value = vwm.MaxIdle;
             }
             await cache.Put(key, vwm.Value, lifeS, maxIdle);
         }
@@ -66,29 +67,31 @@ namespace Infinispan.Hotrod.Caching
         {
             ExpirationTime lifeSpan = getLifeSpan(options);
             ExpirationTime maxIdle = getMaxIdle(options);
-            await cache.Put(key, value);
+
+            await cache.Put(key, value, lifeSpan, maxIdle);
         }
 
         private ExpirationTime getMaxIdle(DistributedCacheEntryOptions options)
         {
             if (options.AbsoluteExpirationRelativeToNow.HasValue)
             {
-                return new ExpirationTime { Unit = TimeUnit.SECONDS, Value = (ulong)options.AbsoluteExpirationRelativeToNow.Value.TotalSeconds };
+                return new ExpirationTime { Unit = TimeUnit.SECONDS, Value = (long)options.AbsoluteExpirationRelativeToNow.Value.TotalSeconds };
+            }
+            if (options.AbsoluteExpiration.HasValue)
+            {
+                var lifeSpanTime = options.AbsoluteExpiration - DateTimeOffset.UtcNow;
+                return new ExpirationTime { Unit = TimeUnit.SECONDS, Value = (long)(lifeSpanTime.Value.TotalSeconds) };
+            }
+            if (options.SlidingExpiration.HasValue)
+            {
+                var lifeSpanTime = options.SlidingExpiration;
+                return new ExpirationTime { Unit = TimeUnit.SECONDS, Value = (long)(lifeSpanTime.Value.TotalSeconds) };
             }
             return null;
         }
 
         private ExpirationTime getLifeSpan(DistributedCacheEntryOptions options)
         {
-            if (options.AbsoluteExpirationRelativeToNow.HasValue)
-            {
-                return new ExpirationTime { Unit = TimeUnit.SECONDS, Value = (ulong)options.AbsoluteExpirationRelativeToNow.Value.TotalSeconds };
-            }
-            if (options.AbsoluteExpiration.HasValue)
-            {
-                var lifeSpanTime = DateTimeOffset.UtcNow - options.AbsoluteExpiration;
-                return new ExpirationTime { Unit = TimeUnit.SECONDS, Value = (ulong)(lifeSpanTime.Value.TotalSeconds) };
-            }
             return null;
         }
 
