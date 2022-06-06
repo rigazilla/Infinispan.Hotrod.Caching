@@ -1,9 +1,9 @@
 using System;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using Infinispan.Hotrod.Caching;
 
-namespace Microsoft.Extensions.DependencyInjection
+namespace Infinispan.Hotrod.Caching.Distributed
 {
     /// <summary>
     /// Extension methods for setting up Infinispan distributed cache related services in an <see cref="IServiceCollection" />.
